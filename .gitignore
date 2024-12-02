@@ -1,2 +1,5 @@
 .venv
 venv
+wandb
+__pycache__
+trained_models
