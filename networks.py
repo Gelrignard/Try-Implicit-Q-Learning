@@ -31,7 +31,6 @@ class Actor(nn.Module):
             num_heads=num_heads,
             batch_first=True
         )
-        self.layer_norm = nn.LayerNorm(hidden_size)
         
         # Keep hidden_size consistent
         self.fc2 = nn.Linear(hidden_size, hidden_size)
@@ -41,32 +40,13 @@ class Actor(nn.Module):
 
     def forward(self, state):
         # Convert to tensor if needed
-        if not isinstance(state, torch.Tensor):
-            state = torch.FloatTensor(state).to(self.fc1.weight.device)
-        
-        # Handle different input shapes
-        if state.ndim == 1:
-            # If 1D tensor [state_size], reshape to [1, state_size]
-            state = state.unsqueeze(0)
-        elif state.ndim == 2 and state.shape[1] == 1:
-            # If shape is [N,1], transpose to [1,N]
-            state = state.transpose(0,1)
-        
-        # Now state should be [batch_size, state_size]
         x = F.relu(self.fc1(state))
-        
-        # Reshape for attention [batch_size, seq_len=1, hidden_size] 
-        x = x.unsqueeze(1)
-        
-        attn_out, _ = self.attention(x, x, x)
-        x = x + attn_out
-        x = self.layer_norm(x)
-        x = x.squeeze(1)
-        
+        x = x.unsqueeze(0)
+        attn_output, _ = self.attention(x, x, x)
+        x = attn_output.squeeze(0)
         x = F.relu(self.fc2(x))
         mu = torch.tanh(self.mu(x))
-        log_std = torch.clamp(self.log_std_linear(x), self.log_std_min, self.log_std_max)
-        
+        log_std = self.log_std_linear(x).clamp(self.log_std_min, self.log_std_max)
         return mu, log_std
     
     def evaluate(self, state, epsilon=1e-6):
