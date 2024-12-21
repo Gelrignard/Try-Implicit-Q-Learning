@@ -39,7 +39,7 @@ class Actor(nn.Module):
         self.log_std_linear = nn.Linear(hidden_size, action_size)
 
     def forward(self, state):
-        # Convert to tensor if needed
+        # Convert to tensor if neededs
         x = F.relu(self.fc1(state))
         x = x.unsqueeze(0)
         attn_output, _ = self.attention(x, x, x)
