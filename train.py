@@ -72,6 +72,9 @@ def train(config):
                 action = agent.get_action(state)
                 steps += 1
                 next_state, reward, done, _ = env.step(action)
+
+                # print("Next state: ", next_state)
+
                 buffer.add(state, action, reward, next_state, done)
                 policy_loss, critic1_loss, critic2_loss, value_loss = agent.learn(buffer.sample())
                 state = next_state
