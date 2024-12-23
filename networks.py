@@ -79,10 +79,28 @@ class Actor(nn.Module):
             if state.size(1) == 1:
                 # convert [3,1] into [3,]
                 state = state.reshape(-1)
+        
+        if state.dim() == 1:
+            state = state.unsqueeze(0)
 
-        print("State size: ")
-        print(state.size())
-        print(state)
+        batch_size, seq_length = state.shape[0], state.shape[1]
+
+        if attention_mask is None:
+            # attention mask for GPT: 1 if can be attended to, 0 if not
+            attention_mask = torch.ones((batch_size, seq_length), dtype=torch.long)
+        
+        stacked_attention_mask = attention_mask
+        # to make the attention mask fit the stacked inputs, have to stack it as well
+        # In DT, it has action, state, return, so we have to stack it 3 times; but here we only have state
+        # stacked_attention_mask = torch.stack(
+        #     (attention_mask, attention_mask, attention_mask), dim=1
+        # ).permute(0, 2, 1).reshape(batch_size, 3*seq_length)
+
+        
+                
+        # print("State size: ")
+        # print(state.size())
+        # print(state)
 
         embeddings = self.fc_input(state)
 
@@ -90,7 +108,7 @@ class Actor(nn.Module):
         embeddings = embeddings.unsqueeze(1)  # [batch_size, seq_len=1, hidden_size]
 
         # Pass through GPT2 (you can add attention_mask if using sequences)
-        gpt_output = self.gpt2(inputs_embeds=embeddings, attention_mask=attention_mask)
+        gpt_output = self.gpt2(inputs_embeds=embeddings, attention_mask=stacked_attention_mask)
 
         # Take the hidden state from GPT2's output
         gpt_hidden = gpt_output.last_hidden_state.squeeze(1)  # [batch_size, hidden_size]
@@ -143,6 +161,15 @@ class Critic(nn.Module):
         self.fc3 = nn.Linear(hidden_size, 1)
 
     def forward(self, state, action):
+        
+        if state.dim() == 2:
+            if state.size(1) == 1:
+                # convert [3,1] into [3,]
+                state = state.reshape(-1)
+        # print("State size: ")
+        # print(state.size())
+        # print('action size: ')
+        # print(action.size())
         x = torch.cat((state, action), dim=-1)
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
