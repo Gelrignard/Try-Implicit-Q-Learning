@@ -160,7 +160,22 @@ class Critic(nn.Module):
         self.fc2 = nn.Linear(hidden_size, hidden_size)
         self.fc3 = nn.Linear(hidden_size, 1)
 
-    def forward(self, state, action):
+        # Load GPT2 model with custom configurations
+        config = GPT2Config(
+            vocab_size=1,  # No vocabulary needed
+            n_embd=hidden_size,  # Embedding size (matches hidden_size)
+            n_layer=4,  # Number of transformer layers
+            n_head=4,  # Number of attention heads
+            resid_pdrop=0.1,  # Dropout for residual connections
+            attn_pdrop=0.1,  # Dropout for attention
+        )
+        self.gpt2 = GPT2Model(config)
+
+        # Linear layers for input and output processing
+        self.fc_input = nn.Linear(state_size+action_size, hidden_size)
+        self.fc_output = nn.Linear(hidden_size, 1)
+
+    def forward(self, state, action, attention_mask=None):
         
         if state.dim() == 2:
             if state.size(1) == 1:
@@ -171,9 +186,29 @@ class Critic(nn.Module):
         # print('action size: ')
         # print(action.size())
         x = torch.cat((state, action), dim=-1)
+        '''
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
+        
+
         return self.fc3(x)
+        '''
+
+        # GPT2 expects input in sequence form, so unsqueeze batch dimension
+        x = x.unsqueeze(1)
+
+        if attention_mask is None:
+            # attention mask for GPT: 1 if can be attended to, 0 if not
+            attention_mask = torch.ones((x.size(0), x.size(1)), dtype=torch.long)
+        
+        stacked_attention_mask = attention_mask
+        embeddings = self.fc_input(x)
+
+        # Pass through GPT2
+        gpt_output = self.gpt2(inputs_embeds=embeddings, attention_mask=stacked_attention_mask)
+        gpt_hidden = gpt_output.last_hidden_state.squeeze(1)
+        x = F.relu(self.fc_output(gpt_hidden))
+        return x
     
 class Value(nn.Module):
     """Value (Value) Model."""
